@@ -30,7 +30,7 @@ const user_schema = new mongoose.Schema({
 })
 const user_model = new mongoose.model('user', user_schema)
 
-app.post('/add_task', async (req, res) => {
+app.post('/api_task', async (req, res) => {
     try {
         await task_model.insertMany(req.body)
         res.status(200).json(result)
@@ -39,7 +39,7 @@ app.post('/add_task', async (req, res) => {
         res.json("Error " + error)
     }
 })
-app.get('/delete/:id', async (req, res) => {
+app.get('/api_delete/:id', async (req, res) => {
     try {
         const result = await task_model.findOneAndDelete({ _id: req.params.id })
         if (result) {
@@ -53,7 +53,7 @@ app.get('/delete/:id', async (req, res) => {
         res.json("Error " + error)
     }
 })
-app.post('/login', async (req, res) => {
+app.post('/api_login', async (req, res) => {
     try {
         let searchName = req.body.name.toLowerCase();
         let result = await user_model.findOne({ name: searchName })
@@ -67,12 +67,12 @@ app.post('/login', async (req, res) => {
         res.json("Error " + error)
     }
 })
-app.get('/task', async (req, res) => {
+app.get('/api_task', async (req, res) => {
     let data = await task_model.find()
     // res.render("task", { data: data, session: req.session.user })
     res.json({ data, session: req.session.user })
 })
-app.post('/use', async (req, res) => {
+app.post('/api_use', async (req, res) => {
     try {
         let user = req.session.user
         let id = req.body._id
@@ -84,13 +84,13 @@ app.post('/use', async (req, res) => {
         res.json("Error " + error)
     }
 })
-app.get('/logout', (req, res) => {
+app.get('/api_logout', (req, res) => {
     req.session.destroy()
     res.json({ status: true })
 })
 
 
-app.get('/edit', async (req, res) => {
+app.get('/api_edit', async (req, res) => {
     const id = req.params.id
     const { title, body } = req.body
     try {
