@@ -12,7 +12,7 @@ app.use(session({
 app.set('view engine', 'ejs')
 app.set('views', __dirname + '/view')
 app.use(express.urlencoded({ extended: true }))
-mongoose.connect('mongodb://localhost:27017/task')
+mongoose.connect('mongodb+srv://Beki:78122775Beki@cluster0.6ypmi.mongodb.net/task')
     .then(console.log("DB connected"))
 const schema = new mongoose.Schema({
     text: {
