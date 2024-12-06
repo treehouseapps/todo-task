@@ -33,6 +33,10 @@ mongoose.connect('mongodb+srv://Beki:78122775Beki@cluster0.6ypmi.mongodb.net/tas
 
 const verifyToken = (req, res, next) => {
   const authHeader = req.headers.authorization
+
+  if(!authHeader) {
+    return res.status(401).json({ status: { code: 401, message: "Bad Request!" }, error: "Authorization header is required" });
+  }
   const token = authHeader.split(" ")[1]
 
   if (!token) {
