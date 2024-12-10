@@ -56,7 +56,7 @@ const verifyToken = (req, res, next) => {
   })
 }
 
-app.get('/api/tasks', verifyToken, async (req, res) => {
+app.get('/api/tasks', async (req, res) => {
   try {
     const use = await User.find()
     const data = await Task.find().populate("user").sort({ $natural: -1 })
