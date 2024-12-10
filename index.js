@@ -7,6 +7,7 @@ const bodyParser = require("body-parser")
 const cors = require('cors');
 
 const User = require('./models/User.js')
+//  new User({name: 'beyene'}).save()
 const Task = require('./models/Task.js')
 
 const JWT_SECRET = "SUPADOPAGang"
@@ -25,6 +26,7 @@ app.use(express.json());
 // Middleware to parse URL-encoded data
 app.use(bodyParser.urlencoded({ extended: true }));
 
+// mongoose.connect('mongodb://127.0.0.1:27017/tasks')
 mongoose.connect('mongodb+srv://Beki:78122775Beki@cluster0.6ypmi.mongodb.net/task')
   .then(console.log("DB connected"))
 
@@ -76,7 +78,9 @@ app.post('/api/tasks', async (req, res) => {
     const response = await new Task({name, status, uploadedBy}).save()
     //get latest tasks and sorts in reverse to make the recent added task apear on top 
     const data = await Task.find().populate("user").sort({ $natural: -1 }) 
-
+    
+    res.status(200).json({ result: true, data })  
+    
   } catch (err) {
     console.log(err)
     res.status(500).json({ err: err, result: false })
@@ -97,10 +101,11 @@ app.delete('/api/tasks/:id', async (req, res) => {
 })
 
 // patch updates the specific body part only
-app.patch('/api/tasks/:name', async (req, res) => {
+app.patch('/api/tasks/:id', async (req, res) => {
   try {
-    let taskName = req.params.name
-    const taskTaken = await Task.findOne({ name: taskName })
+    let id = req.params.id
+
+    const taskTaken = await Task.findOne({ _id: id })
 
 
     if(taskTaken.status===req.body.status) {
@@ -109,7 +114,7 @@ app.patch('/api/tasks/:name', async (req, res) => {
 
     if(req.body.status === 'free') req.body.user = null
 
-    const patchedData = await Task.findOneAndUpdate({name: taskName}, { status: req.body.status, user: req.body.user }, { new: true })
+    const patchedData = await Task.findOneAndUpdate({_id: id}, { status: req.body.status, user: req.body.user }, { new: true })
     const updatedData = await Task.find().populate("user").sort({ $natural: -1 })
     res.status(200).json({ result: true, data: updatedData })
   } catch (err) {
@@ -118,9 +123,10 @@ app.patch('/api/tasks/:name', async (req, res) => {
   }
 })
 
-
 app.post('/api/login', async (req, res) => {
   try {
+    console.log(req.body)
+
     if (!req.body.name) {
       console.log("USERNAME IS REQUIRED")
       return res.status(400).json({ error: "Name is required." });
@@ -150,6 +156,18 @@ app.get('/api/logout', (req, res) => {
 app.get("/api/auth_check", verifyToken, async (req, res) => {
   try {
     res.status(200).json({ message: "User has logged in" })
+  } catch (err) {
+    console.log(err)
+    res.status(500).json({ error: "Network error." })
+  }
+})
+
+app.get("/api/profile", verifyToken, async (req, res) => {
+  try {
+    const profile = await User.findOne({ name: req.user.user })
+    const tasks = await Task.find({ user: req.user.id }).populate('user')
+    console.log(profile)
+    res.status(200).json({ data: {profile, tasks} })
   } catch (err) {
     console.log(err)
     res.status(500).json({ error: "Network error." })
