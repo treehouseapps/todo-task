@@ -1,108 +1,191 @@
 const express = require("express")
+const jwt = require("jsonwebtoken");
 const app = express()
 const mongoose = require('mongoose')
 const session = require('express-session')
+const bodyParser = require("body-parser")
+const cors = require('cors');
 
-app.use(session({
-    secret: "secretKey",
-    cookie: { maxAge: 200000 },
-    resave: false,
-    Uninitialized: true,
-}))
-app.set('view engine', 'ejs')
-app.set('views', __dirname + '/view')
-app.use(express.urlencoded({ extended: true }))
+const User = require('./models/User.js')
+//  new User({name: 'beyene'}).save()
+const Task = require('./models/Task.js')
+
+const JWT_SECRET = "SUPADOPAGang"
+app.use(cors());
+app.use(
+  cors({
+    origin: true, 
+    credentials: true, // Allow cookies and credentials for jwt
+  })
+);
+
+// Middleware to parse JSON
+app.use(bodyParser.json());
+app.use(express.json());
+
+// Middleware to parse URL-encoded data
+app.use(bodyParser.urlencoded({ extended: true }));
+
+// mongoose.connect('mongodb://127.0.0.1:27017/tasks')
 mongoose.connect('mongodb+srv://Beki:78122775Beki@cluster0.6ypmi.mongodb.net/task')
-    .then(console.log("DB connected"))
-const schema = new mongoose.Schema({
-    text: {
-        type: String,
-    },
-    used: {
-        type: String,
-    }
-})
-const task_model = new mongoose.model('task', schema)
-const user_schema = new mongoose.Schema({
-    name: {
-        type: String,
-    }
-})
-const user_model = new mongoose.model('user', user_schema)
+  .then(console.log("DB connected"))
 
-app.post('/api_task', async (req, res) => {
-    try {
-        await task_model.insertMany(req.body)
-        res.status(200).json(result)
-    }
-    catch {
-        res.json("Error " + error)
-    }
-})
-app.get('/api_delete/:id', async (req, res) => {
-    try {
-        const result = await task_model.findOneAndDelete({ _id: req.params.id })
-        if (result) {
-            res.json({ status: true })
-        }
-        else {
-            res.json({ status: false })
-        }
-    }
-    catch {
-        res.json("Error " + error)
-    }
-})
-app.post('/api_login', async (req, res) => {
-    try {
-        let searchName = req.body.name.toLowerCase();
-        let result = await user_model.findOne({ name: searchName })
-        if (result) {
-            req.session.user = result.name
-            // res.redirect('/task')
-            res.json({ status: true })
-        }
-    }
-    catch {
-        res.json("Error " + error)
-    }
-})
-app.get('/api_task', async (req, res) => {
-    let data = await task_model.find()
-    // res.render("task", { data: data, session: req.session.user })
-    res.json({ data, session: req.session.user })
-})
-app.post('/api_use', async (req, res) => {
-    try {
-        let user = req.session.user
-        let id = req.body._id
-        await task_model.updateOne({ _id: id }, { used: user })
-        // res.redirect("/task")
-        res.json({ status: true })
-    }
-    catch {
-        res.json("Error " + error)
-    }
-})
-app.get('/api_logout', (req, res) => {
-    req.session.destroy()
-    res.json({ status: true })
-})
+// custom middleware
+// this checks if a user is logged in or not 
 
+const verifyToken = (req, res, next) => {
+  const authHeader = req.headers.authorization
 
-app.get('/api_edit', async (req, res) => {
-    const id = req.params.id
-    const { title, body } = req.body
-    try {
-        const result = await task_model.findOneAndUpdate({ _id: id }, { title: title, body: body })
-        res.status(200).json(result)
-    } catch (error) {
-        res.json("Error " + error)
+  if(!authHeader) {
+    return res.status(401).json({ status: { code: 401, message: "Bad Request!" }, error: "Authorization header is required" });
+  }
+  const token = authHeader.split(" ")[1]
+
+  if (!token) {
+    return res.status(401).json({ error: "Authentication token is required." });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      console.log("Cannot verify the token")
+      return res.status(403).json({ error: "Invalid or Expired Token" })
     }
 
+    req.user = user
+    next()
+  })
+}
+
+app.get('/api/tasks', async (req, res) => {
+  try {
+    const use = await User.find()
+    const data = await Task.find().populate("user").sort({ $natural: -1 })
+
+    res.status(200).json({ data, user: req.user, result: true })
+  } catch (err) {
+    res.status(500).json({ err: err, message: err.message })
+  }
 })
 
-const port = 3000
+app.post('/api/tasks', async (req, res) => {
+  try {
+    const { name, status, uploadedBy } = req.body
+
+    if(!name || name === '') {
+      return res.status(403).json({ error: "Bad request" })
+    }
+
+    const response = await new Task({name, status, uploadedBy}).save()
+    //get latest tasks and sorts in reverse to make the recent added task apear on top 
+    const data = await Task.find().populate("user").sort({ $natural: -1 }) 
+    
+    res.status(200).json({ result: true, data })  
+    
+  } catch (err) {
+    console.log(err)
+    res.status(500).json({ err: err, result: false })
+  }
+})
+
+app.delete('/api/tasks/:id', async (req, res) => {
+  try {
+    const result = await Task.findOneAndDelete({ _id: req.params.id })
+    const data = await Task.find().populate("user").sort({ $natural: -1 })
+
+    res.json({ result: true, data })
+
+  } catch (err) {
+    console.log(err)
+    res.status(500).json({ err: err, result: false })
+  }
+})
+
+// patch updates the specific body part only
+app.patch('/api/tasks/:id', async (req, res) => {
+  try {
+    let id = req.params.id
+
+    const taskTaken = await Task.findOne({ _id: id })
+
+
+    if(taskTaken.status===req.body.status) {
+      return res.status(403).json({ error: "Bad request", data: taskTaken })
+    }
+
+    if(req.body.status === 'free') req.body.user = null
+
+    const patchedData = await Task.findOneAndUpdate({_id: id}, { status: req.body.status, user: req.body.user }, { new: true })
+    const updatedData = await Task.find().populate("user").sort({ $natural: -1 })
+    res.status(200).json({ result: true, data: updatedData })
+  } catch (err) {
+    console.log(err)
+    res.status(500).json({ err: err, result: false })
+  }
+})
+
+app.post('/api/login', async (req, res) => {
+  try {
+    console.log(req.body)
+
+    if (!req.body.name) {
+      console.log("USERNAME IS REQUIRED")
+      return res.status(400).json({ error: "Name is required." });
+    }
+
+    let name = req.body.name.toLowerCase();
+    let result = await User.findOne({ name })
+
+    if (!result) {
+      console.log("USER NOT FOUND")
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    const token = jwt.sign({ user: result.name, id: result._id }, JWT_SECRET, { expiresIn: "24hr" })
+    res.status(200).json({ messsage: "Login Successful.", token, user: result })
+  } catch (err) {
+    console.log(err)
+    res.status(500).json({ error: "Server error." })
+  }
+})
+
+app.get('/api/logout', (req, res) => {
+  req.session.destroy()
+  res.json({ status: true })
+})
+
+app.get("/api/auth_check", verifyToken, async (req, res) => {
+  try {
+    res.status(200).json({ message: "User has logged in" })
+  } catch (err) {
+    console.log(err)
+    res.status(500).json({ error: "Network error." })
+  }
+})
+
+app.get("/api/profile", verifyToken, async (req, res) => {
+  try {
+    const profile = await User.findOne({ name: req.user.user })
+    const tasks = await Task.find({ user: req.user.id }).populate('user')
+    console.log(profile)
+    res.status(200).json({ data: {profile, tasks} })
+  } catch (err) {
+    console.log(err)
+    res.status(500).json({ error: "Network error." })
+  }
+})
+// app.get('/api_edit', async (req, res) => {
+//     const id = req.params.id
+//     const { title, body } = req.body
+//     try {
+//         const result = await task_model.findOneAndUpdate({ _id: id }, { title: title, body: body })
+//         res.status(200).json(result)
+//     } catch (error) {
+//         res.json("Error " + error)
+//     }
+
+// })
+
+const port = 4000
 app.listen(port, () => {
-    console.log("Server running on port " + port)
+  console.log("Server running on port " + port)
 })
