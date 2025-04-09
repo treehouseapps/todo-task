@@ -1,5 +1,6 @@
 const express = require("express")
 const app = express()
+require('dotenv').config()
 const mongoose = require('mongoose')
 const session = require('express-session')
 
@@ -12,7 +13,7 @@ app.use(session({
 app.set('view engine', 'ejs')
 app.set('views', __dirname + '/view')
 app.use(express.urlencoded({ extended: true }))
-mongoose.connect('mongodb+srv://Beki:78122775Beki@cluster0.6ypmi.mongodb.net/task')
+mongoose.connect('process.env.DBCONNECTION')
     .then(console.log("DB connected"))
 const schema = new mongoose.Schema({
     text: {
@@ -102,7 +103,6 @@ app.get('/api_edit', async (req, res) => {
 
 })
 
-const port = 3000
 app.listen(port, () => {
-    console.log("Server running on port " + port)
+    console.log("Server running on port " + process.env.PORT)
 })
